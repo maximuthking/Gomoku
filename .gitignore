@@ -1,0 +1,29 @@
+# Global ignores
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependencies
+# Ignore root node_modules and frontend's node_modules
+/node_modules
+/gomoku-frontend/node_modules
+/.pnp
+.pnp.js
+
+# Backend specific
+# Ignore the .env file in the backend directory
+/gomoku-backend/.env
+/gomoku-backend/node_modules
+
+# Frontend (Create React App)
+/gomoku-frontend/build
+/gomoku-frontend/coverage
+
+# Environment variables
+# Ignore various .env files from all locations
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

@@ -1,0 +1,61 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String       @id @default(cuid())
+  googleId      String       @unique
+  email         String       @unique
+  name          String
+  nickname      String?      @unique
+  profileImage  String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  stats         UserStats[]
+  gamesAsWinner GameRecord[] @relation("Winner")
+  gamesAsLoser  GameRecord[] @relation("Loser")
+  gamesAsBlack  GameRecord[] @relation("BlackPlayer")
+  gamesAsWhite  GameRecord[] @relation("WhitePlayer")
+}
+
+model GameRecord {
+  id            String   @id @default(cuid())
+  gameType      String // e.g., "GOMOKU", "ALKKAGI"
+  winnerId      String
+  loserId       String
+  blackPlayerId String
+  whitePlayerId String
+  moveCount     Int
+  startedAt     DateTime @default(now())
+  endedAt       DateTime
+  winner        User     @relation("Winner", fields: [winnerId], references: [id])
+  loser         User     @relation("Loser", fields: [loserId], references: [id])
+  blackPlayer   User     @relation("BlackPlayer", fields: [blackPlayerId], references: [id])
+  whitePlayer   User     @relation("WhitePlayer", fields: [whitePlayerId], references: [id])
+
+  @@index([winnerId])
+  @@index([loserId])
+}
+
+model UserStats {
+  id          String @id @default(cuid())
+  userId      String
+  gameType    String // e.g., "GOMOKU", "ALKKAGI"
+  totalPlays  Int    @default(0)
+  wins        Int    @default(0)
+  losses      Int    @default(0)
+  winsAsBlack Int    @default(0)
+  winsAsWhite Int    @default(0)
+  user        User   @relation(fields: [userId], references: [id])
+
+  @@unique([userId, gameType])
+}
