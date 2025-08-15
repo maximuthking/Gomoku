@@ -1,0 +1,13 @@
+.board-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+canvas {
+  /* 보드가 떠 있는 듯한 그림자 효과 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  /* 보드 모서리를 부드럽게 처리 (선택 사항) */
+  border-radius: 8px;
+}

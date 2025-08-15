@@ -78,8 +78,10 @@ function App() {
   };
 
   const handleGuestLogin = () => {
+    const guestId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const guestNickname = `Guest${Math.floor(Math.random() * 10000)}`;
     setUser({ 
+      id: guestId,
       nickname: guestNickname, 
       isGuest: true 
     });
@@ -93,8 +95,8 @@ function App() {
     if (!user) {
       return <Login onGuestLogin={handleGuestLogin} />;
     }
-    if (activeRoomId && user.nickname) {
-      return <GameRoom roomId={activeRoomId} user={{...user, nickname: user.nickname}} onLeave={handleLeaveRoom} />;
+    if (activeRoomId && user.id && user.nickname) {
+      return <GameRoom roomId={activeRoomId} user={{ id: user.id!, nickname: user.nickname! }} onLeave={handleLeaveRoom} />;
     }
     return <Lobby user={user} onNicknameUpdate={handleNicknameUpdate} onJoinRoom={handleJoinRoom} />;
   };
