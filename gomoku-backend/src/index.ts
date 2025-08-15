@@ -127,14 +127,16 @@ const gameStates = new Map<string, {
 
 const BOARD_SIZE = 15;
 
-// Helper function to check boundaries
 function isInBounds(row: number, col: number): boolean {
   return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
 }
 
-// Helper function to count consecutive stones in a given direction
-function countStones(board: (string | null)[][], row: number, col: number, dr: number, dc: number, player: string): number {
-    let count = 0;
+function countLine(board: (string | null)[][], row: number, col: number, dr: number, dc: number): number {
+    const player = board[row][col];
+    if (!player) return 0;
+    let count = 1;
+    
+    // Count in the positive direction
     let r = row + dr;
     let c = col + dc;
     while (isInBounds(r, c) && board[r][c] === player) {
@@ -142,129 +144,80 @@ function countStones(board: (string | null)[][], row: number, col: number, dr: n
         r += dr;
         c += dc;
     }
+
+    // Count in the negative direction
+    r = row - dr;
+    c = col - dc;
+    while (isInBounds(r, c) && board[r][c] === player) {
+        count++;
+        r -= dr;
+        c -= dc;
+    }
     return count;
 }
 
-// Renju rule validation for Black
-function isMoveForbidden(board: (string | null)[][], row: number, col: number): { forbidden: boolean, type: string | null } {
-    const player = 'black';
-    const tempBoard = board.map(row => [...row]);
-    tempBoard[row][col] = player;
+function checkWin(board: (string | null)[][], row: number, col: number): { isWin: boolean, player: string | null } {
+    const player = board[row][col];
+    if (!player) return { isWin: false, player: null };
 
-    const directions = [
-        { dr: 0, dc: 1 },  // Horizontal
-        { dr: 1, dc: 0 },  // Vertical
-        { dr: 1, dc: 1 },  // Diagonal \
-        { dr: 1, dc: -1 }  // Diagonal /
-    ];
+    const directions = [{ dr: 1, dc: 0 }, { dr: 0, dc: 1 }, { dr: 1, dc: 1 }, { dr: 1, dc: -1 }];
 
-    // Check for overline (6 or more stones)
     for (const { dr, dc } of directions) {
-        const count = 1 + countStones(tempBoard, row, col, dr, dc, player) + countStones(tempBoard, row, col, -dr, -dc, player);
-        if (count > 5) {
-            // An overline is only a winning move for white. For black it's a forbidden move if it doesn't also complete a 5.
-            // But standard renju rules just forbid creating an overline.
+        const count = countLine(board, row, col, dr, dc);
+        if (player === 'black' && count === 5) return { isWin: true, player };
+        if (player === 'white' && count >= 5) return { isWin: true, player };
+    }
+
+    return { isWin: false, player: null };
+}
+
+function isForbidden(board: (string | null)[][], row: number, col: number): { forbidden: boolean, type: string | null } {
+    const player = 'black';
+    const directions = [{ dr: 1, dc: 0 }, { dr: 0, dc: 1 }, { dr: 1, dc: 1 }, { dr: 1, dc: -1 }];
+
+    // Check for overline (already placed, so it must be > 5)
+    for (const { dr, dc } of directions) {
+        if (countLine(board, row, col, dr, dc) > 5) {
             return { forbidden: true, type: 'overline' };
         }
     }
-
+    
+    // Simplified 3-3 and 4-4 check
     let openThrees = 0;
     let openFours = 0;
 
     for (const { dr, dc } of directions) {
         let consecutive = 1;
         let openEnds = 0;
-        let spaces = [];
 
-        // Count in one direction
+        // Positive direction
         let r = row + dr;
         let c = col + dc;
-        while (isInBounds(r, c) && tempBoard[r][c] === player) {
+        while (isInBounds(r, c) && board[r][c] === player) {
             consecutive++;
             r += dr;
             c += dc;
         }
-        // Check for open end
-        if (isInBounds(r, c) && tempBoard[r][c] === null) {
-            openEnds++;
-            spaces.push({r,c});
-        }
+        if (isInBounds(r, c) && board[r][c] === null) openEnds++;
 
-        // Count in opposite direction
+        // Negative direction
         r = row - dr;
         c = col - dc;
-        while (isInBounds(r, c) && tempBoard[r][c] === player) {
+        while (isInBounds(r, c) && board[r][c] === player) {
             consecutive++;
             r -= dr;
             c -= dc;
         }
-        // Check for open end
-        if (isInBounds(r, c) && tempBoard[r][c] === null) {
-            openEnds++;
-            spaces.push({r,c});
-        }
+        if (isInBounds(r, c) && board[r][c] === null) openEnds++;
 
-        // This is a simplified check. A full implementation is more complex.
-        // This simplified version checks for patterns that are likely to be 3-3 or 4-4.
-        if (consecutive === 3 && openEnds === 2) {
-            openThrees++;
-        }
-        if (consecutive === 4 && openEnds >= 1) {
-            openFours++;
-        }
+        if (consecutive === 3 && openEnds === 2) openThrees++;
+        if (consecutive === 4 && openEnds >= 1) openFours++;
     }
 
-    // A move is 3-3 if it creates two open threes.
     if (openThrees >= 2) return { forbidden: true, type: '3-3' };
-    // A move is 4-4 if it creates two fours.
     if (openFours >= 2) return { forbidden: true, type: '4-4' };
 
     return { forbidden: false, type: null };
-}
-
-
-function checkWin(board: (string | null)[][], row: number, col: number): { isWin: boolean, player: string | null } {
-  const player = board[row][col];
-  if (!player) return { isWin: false, player: null };
-
-  const directions = [
-    { x: 1, y: 0 }, // Horizontal
-    { x: 0, y: 1 }, // Vertical
-    { x: 1, y: 1 }, // Diagonal \
-    { x: 1, y: -1 } // Diagonal /
-  ];
-
-  for (const dir of directions) {
-    let count = 1;
-    // Count in the positive direction
-    for (let i = 1; i < 6; i++) {
-        const newRow = row + dir.y * i;
-        const newCol = col + dir.x * i;
-        if (isInBounds(newRow, newCol) && board[newRow][newCol] === player) {
-            count++;
-        } else {
-            break;
-        }
-    }
-    // Count in the negative direction
-    for (let i = 1; i < 6; i++) {
-        const newRow = row - dir.y * i;
-        const newCol = col - dir.x * i;
-        if (isInBounds(newRow, newCol) && board[newRow][newCol] === player) {
-            count++;
-        } else {
-            break;
-        }
-    }
-
-    if (player === 'black') {
-        if (count === 5) return { isWin: true, player };
-    } else { // 'white'
-        if (count >= 5) return { isWin: true, player };
-    }
-  }
-
-  return { isWin: false, player: null };
 }
 
 async function saveGameResult(winnerId: string, loserId: string, blackPlayerId: string, whitePlayerId: string, moveCount: number, winnerColor: string) {
@@ -367,41 +320,47 @@ io.on('connection', (socket) => {
     const playerColor = Object.keys(gameState.players).find(color => gameState.players[color as keyof typeof gameState.players]?.socketId === socket.id);
 
     if (playerColor && gameState.currentPlayer === playerColor) {
-      if (gameState.board[row][col] !== null) {
-        socket.emit('invalidMove', { message: 'This position is already taken.' });
-        return;
-      }
-
-      // Renju rule validation for black player
-      if (playerColor === 'black') {
-        const validation = isMoveForbidden(gameState.board, row, col);
-        if (validation.forbidden) {
-          socket.emit('invalidMove', { message: `Forbidden move: ${validation.type}` });
-          return;
+        if (gameState.board[row][col] !== null) {
+            socket.emit('invalidMove', { message: 'This position is already taken.' });
+            return;
         }
-      }
 
-      // Place the stone
-      gameState.board[row][col] = playerColor;
+        // Place the stone
+        gameState.board[row][col] = playerColor;
 
-      const winCheck = checkWin(gameState.board, row, col);
-      if (winCheck.isWin) {
-        gameState.winner = winCheck.player;
-        const winner = gameState.players[winCheck.player! as keyof typeof gameState.players];
-        const loserColor = winCheck.player === 'black' ? 'white' : 'black';
-        const loser = gameState.players[loserColor as keyof typeof gameState.players];
-        const blackPlayer = gameState.players.black;
-        const whitePlayer = gameState.players.white;
+        // Check for win
+        const winCheck = checkWin(gameState.board, row, col);
+        if (winCheck.isWin) {
+            gameState.winner = winCheck.player;
+            const winner = gameState.players[winCheck.player! as keyof typeof gameState.players];
+            const loserColor = winCheck.player === 'black' ? 'white' : 'black';
+            const loser = gameState.players[loserColor as keyof typeof gameState.players];
+            const blackPlayer = gameState.players.black;
+            const whitePlayer = gameState.players.white;
 
-        if (winner && loser && blackPlayer && whitePlayer) {
-          const moveCount = gameState.board.flat().filter(cell => cell !== null).length;
-          saveGameResult(winner.id, loser.id, blackPlayer.id, whitePlayer.id, moveCount, winCheck.player!);
+            if (winner && loser && blackPlayer && whitePlayer) {
+                const moveCount = gameState.board.flat().filter(cell => cell !== null).length;
+                saveGameResult(winner.id, loser.id, blackPlayer.id, whitePlayer.id, moveCount, winCheck.player!);
+            }
+            io.to(roomId).emit('updateGame', gameState);
+            return;
         }
-      } else {
+
+        // If not a win, check for forbidden moves for Black
+        if (playerColor === 'black') {
+            const forbiddenCheck = isForbidden(gameState.board, row, col);
+            if (forbiddenCheck.forbidden) {
+                // Revert the move
+                gameState.board[row][col] = null; 
+                socket.emit('invalidMove', { message: `Forbidden move: ${forbiddenCheck.type}` });
+                io.to(roomId).emit('updateGame', gameState); // Send back the reverted state
+                return;
+            }
+        }
+
+        // If move is valid and not a win, switch player
         gameState.currentPlayer = playerColor === 'black' ? 'white' : 'black';
-      }
-
-      io.to(roomId).emit('updateGame', gameState);
+        io.to(roomId).emit('updateGame', gameState);
     }
   });
 
