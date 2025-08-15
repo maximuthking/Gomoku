@@ -125,41 +125,99 @@ const gameStates = new Map<string, {
   winner: string | null 
 }>();
 
-function checkWin(board: (string | null)[][], row: number, col: number): boolean {
-  const player = board[row][col];
-  if (!player) return false;
+const BOARD_SIZE = 15;
 
-  const directions = [
-    { x: 1, y: 0 }, // Horizontal
-    { x: 0, y: 1 }, // Vertical
-    { x: 1, y: 1 }, // Diagonal \
-    { x: 1, y: -1 } // Diagonal /
-  ];
+function isInBounds(row: number, col: number): boolean {
+  return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
+}
 
-  for (const dir of directions) {
+function countLine(board: (string | null)[][], row: number, col: number, dr: number, dc: number): number {
+    const player = board[row][col];
+    if (!player) return 0;
     let count = 1;
-    for (let i = 1; i < 5; i++) {
-      const newRow = row + dir.y * i;
-      const newCol = col + dir.x * i;
-      if (newRow >= 0 && newRow < 15 && newCol >= 0 && newCol < 15 && board[newRow][newCol] === player) {
+    
+    // Count in the positive direction
+    let r = row + dr;
+    let c = col + dc;
+    while (isInBounds(r, c) && board[r][c] === player) {
         count++;
-      } else {
-        break;
-      }
+        r += dr;
+        c += dc;
     }
-    for (let i = 1; i < 5; i++) {
-      const newRow = row - dir.y * i;
-      const newCol = col - dir.x * i;
-      if (newRow >= 0 && newRow < 15 && newCol >= 0 && newCol < 15 && board[newRow][newCol] === player) {
-        count++;
-      } else {
-        break;
-      }
-    }
-    if (count >= 5) return true;
-  }
 
-  return false;
+    // Count in the negative direction
+    r = row - dr;
+    c = col - dc;
+    while (isInBounds(r, c) && board[r][c] === player) {
+        count++;
+        r -= dr;
+        c -= dc;
+    }
+    return count;
+}
+
+function checkWin(board: (string | null)[][], row: number, col: number): { isWin: boolean, player: string | null } {
+    const player = board[row][col];
+    if (!player) return { isWin: false, player: null };
+
+    const directions = [{ dr: 1, dc: 0 }, { dr: 0, dc: 1 }, { dr: 1, dc: 1 }, { dr: 1, dc: -1 }];
+
+    for (const { dr, dc } of directions) {
+        const count = countLine(board, row, col, dr, dc);
+        if (player === 'black' && count === 5) return { isWin: true, player };
+        if (player === 'white' && count >= 5) return { isWin: true, player };
+    }
+
+    return { isWin: false, player: null };
+}
+
+function isForbidden(board: (string | null)[][], row: number, col: number): { forbidden: boolean, type: string | null } {
+    const player = 'black';
+    const directions = [{ dr: 1, dc: 0 }, { dr: 0, dc: 1 }, { dr: 1, dc: 1 }, { dr: 1, dc: -1 }];
+
+    // Check for overline (already placed, so it must be > 5)
+    for (const { dr, dc } of directions) {
+        if (countLine(board, row, col, dr, dc) > 5) {
+            return { forbidden: true, type: 'overline' };
+        }
+    }
+    
+    // Simplified 3-3 and 4-4 check
+    let openThrees = 0;
+    let openFours = 0;
+
+    for (const { dr, dc } of directions) {
+        let consecutive = 1;
+        let openEnds = 0;
+
+        // Positive direction
+        let r = row + dr;
+        let c = col + dc;
+        while (isInBounds(r, c) && board[r][c] === player) {
+            consecutive++;
+            r += dr;
+            c += dc;
+        }
+        if (isInBounds(r, c) && board[r][c] === null) openEnds++;
+
+        // Negative direction
+        r = row - dr;
+        c = col - dc;
+        while (isInBounds(r, c) && board[r][c] === player) {
+            consecutive++;
+            r -= dr;
+            c -= dc;
+        }
+        if (isInBounds(r, c) && board[r][c] === null) openEnds++;
+
+        if (consecutive === 3 && openEnds === 2) openThrees++;
+        if (consecutive === 4 && openEnds >= 1) openFours++;
+    }
+
+    if (openThrees >= 2) return { forbidden: true, type: '3-3' };
+    if (openFours >= 2) return { forbidden: true, type: '4-4' };
+
+    return { forbidden: false, type: null };
 }
 
 async function saveGameResult(winnerId: string, loserId: string, blackPlayerId: string, whitePlayerId: string, moveCount: number, winnerColor: string) {
@@ -257,32 +315,52 @@ io.on('connection', (socket) => {
 
   socket.on('placeStone', ({ roomId, row, col }: { roomId: string; row: number; col: number }) => {
     const gameState = gameStates.get(roomId);
-    if (!gameState || gameState.winner) return;
+    if (!gameState || gameState.winner || !isInBounds(row, col)) return;
 
     const playerColor = Object.keys(gameState.players).find(color => gameState.players[color as keyof typeof gameState.players]?.socketId === socket.id);
 
     if (playerColor && gameState.currentPlayer === playerColor) {
-      if (gameState.board[row][col] === null) {
-        gameState.board[row][col] = playerColor;
-
-        if (checkWin(gameState.board, row, col)) {
-          gameState.winner = playerColor;
-          const winner = gameState.players[playerColor as keyof typeof gameState.players];
-          const loserColor = playerColor === 'black' ? 'white' : 'black';
-          const loser = gameState.players[loserColor as keyof typeof gameState.players];
-          const blackPlayer = gameState.players.black;
-          const whitePlayer = gameState.players.white;
-
-          if (winner && loser && blackPlayer && whitePlayer) {
-            const moveCount = gameState.board.flat().filter(cell => cell !== null).length;
-            saveGameResult(winner.id, loser.id, blackPlayer.id, whitePlayer.id, moveCount, playerColor);
-          }
-        } else {
-          gameState.currentPlayer = playerColor === 'black' ? 'white' : 'black';
+        if (gameState.board[row][col] !== null) {
+            socket.emit('invalidMove', { message: 'This position is already taken.' });
+            return;
         }
 
+        // Place the stone
+        gameState.board[row][col] = playerColor;
+
+        // Check for win
+        const winCheck = checkWin(gameState.board, row, col);
+        if (winCheck.isWin) {
+            gameState.winner = winCheck.player;
+            const winner = gameState.players[winCheck.player! as keyof typeof gameState.players];
+            const loserColor = winCheck.player === 'black' ? 'white' : 'black';
+            const loser = gameState.players[loserColor as keyof typeof gameState.players];
+            const blackPlayer = gameState.players.black;
+            const whitePlayer = gameState.players.white;
+
+            if (winner && loser && blackPlayer && whitePlayer) {
+                const moveCount = gameState.board.flat().filter(cell => cell !== null).length;
+                saveGameResult(winner.id, loser.id, blackPlayer.id, whitePlayer.id, moveCount, winCheck.player!);
+            }
+            io.to(roomId).emit('updateGame', gameState);
+            return;
+        }
+
+        // If not a win, check for forbidden moves for Black
+        if (playerColor === 'black') {
+            const forbiddenCheck = isForbidden(gameState.board, row, col);
+            if (forbiddenCheck.forbidden) {
+                // Revert the move
+                gameState.board[row][col] = null; 
+                socket.emit('invalidMove', { message: `Forbidden move: ${forbiddenCheck.type}` });
+                io.to(roomId).emit('updateGame', gameState); // Send back the reverted state
+                return;
+            }
+        }
+
+        // If move is valid and not a win, switch player
+        gameState.currentPlayer = playerColor === 'black' ? 'white' : 'black';
         io.to(roomId).emit('updateGame', gameState);
-      }
     }
   });
 
