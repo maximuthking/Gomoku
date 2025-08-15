@@ -171,53 +171,131 @@ function checkWin(board: (string | null)[][], row: number, col: number): { isWin
     return { isWin: false, player: null };
 }
 
-function isForbidden(board: (string | null)[][], row: number, col: number): { forbidden: boolean, type: string | null } {
+/**
+ * 지정된 위치에 돌을 놓았을 때 렌주룰에 따른 금수인지 판정합니다.
+ * @param board 현재 바둑판 상태
+ * @param row 돌을 놓을 행 인덱스
+ * @param col 돌을 놓을 열 인덱스
+ * @returns 금수 여부와 금수 유형을 포함한 객체
+ */
+export function isForbidden(board: (string | null)[][], row: number, col: number): { forbidden: boolean, type: string | null } {
     const player = 'black';
+
+    // 임시로 돌을 놓아보고 확인
+    board[row][col] = player;
+
     const directions = [{ dr: 1, dc: 0 }, { dr: 0, dc: 1 }, { dr: 1, dc: 1 }, { dr: 1, dc: -1 }];
 
-    // Check for overline (already placed, so it must be > 5)
+    // 장목(6목 이상) 확인
     for (const { dr, dc } of directions) {
         if (countLine(board, row, col, dr, dc) > 5) {
+            board[row][col] = null; // 보드 상태 원상 복구
             return { forbidden: true, type: 'overline' };
         }
     }
-    
-    // Simplified 3-3 and 4-4 check
-    let openThrees = 0;
-    let openFours = 0;
+
+    let threeCount = 0;
+    let fourCount = 0;
 
     for (const { dr, dc } of directions) {
-        let consecutive = 1;
-        let openEnds = 0;
-
-        // Positive direction
-        let r = row + dr;
-        let c = col + dc;
-        while (isInBounds(r, c) && board[r][c] === player) {
-            consecutive++;
-            r += dr;
-            c += dc;
+        // 3-3, 4-4 확인 로직
+        if (isThree(board, row, col, dr, dc, player)) {
+            threeCount++;
         }
-        if (isInBounds(r, c) && board[r][c] === null) openEnds++;
-
-        // Negative direction
-        r = row - dr;
-        c = col - dc;
-        while (isInBounds(r, c) && board[r][c] === player) {
-            consecutive++;
-            r -= dr;
-            c -= dc;
+        if (isFour(board, row, col, dr, dc, player)) {
+            fourCount++;
         }
-        if (isInBounds(r, c) && board[r][c] === null) openEnds++;
-
-        if (consecutive === 3 && openEnds === 2) openThrees++;
-        if (consecutive === 4 && openEnds >= 1) openFours++;
     }
 
-    if (openThrees >= 2) return { forbidden: true, type: '3-3' };
-    if (openFours >= 2) return { forbidden: true, type: '4-4' };
+    board[row][col] = null; // 보드 상태 원상 복구
+
+    if (threeCount >= 2) return { forbidden: true, type: '3-3' };
+    if (fourCount >= 2) return { forbidden: true, type: '4-4' };
 
     return { forbidden: false, type: null };
+}
+
+/**
+ * 특정 위치에 돌을 놓았을 때 '열린 3'이 형성되는지 확인합니다.
+ * @param board 바둑판 상태
+ * @param r 행
+ * @param c 열
+ * @param dr 방향 벡터 (행)
+ * @param dc 방향 벡터 (열)
+ * @param player 현재 플레이어
+ * @returns '열린 3' 여부
+ */
+function isThree(board: (string | null)[][], r: number, c: number, dr: number, dc: number, player: string): boolean {
+    // 패턴 예시: O_XXX_O (O: 빈 칸, X: 현재 플레이어의 돌)
+    // 1. X_XX 패턴: O X _ X X O
+    let line = getLine(board, r, c, dr, dc, player, 4);
+    if (line.match(/_..._/)) { // 양쪽이 열려있어야 함
+        if ((line.match(/X_XX/g) || []).length === 1 && line.indexOf('X_XX') === 1) return true;
+        if ((line.match(/XX_X/g) || []).length === 1 && line.indexOf('XX_X') === 1) return true;
+    }
+
+    // 2. _X_X_ 패턴: O X _ X _ O
+    line = getLine(board, r, c, dr, dc, player, 5);
+    if (line.match(/_....._/)) {
+        if ((line.match(/X_X_X/g) || []).length === 1 && line.indexOf('X_X_X') === 1) return true;
+    }
+
+    return false;
+}
+
+/**
+ * 특정 위치에 돌을 놓았을 때 '4'가 형성되는지 확인합니다.
+ * @param board 바둑판 상태
+ * @param r 행
+ * @param c 열
+ * @param dr 방향 벡터 (행)
+ * @param dc 방향 벡터 (열)
+ * @param player 현재 플레이어
+ * @returns '4' 여부
+ */
+function isFour(board: (string | null)[][], r: number, c: number, dr: number, dc: number, player: string): boolean {
+    // 패턴 예시: _XXXX_ (열린 4), OXXXX_ (반열린 4)
+    const line = getLine(board, r, c, dr, dc, player, 5); // XXXXX
+    if ((line.match(/XXXXX/g) || []).length > 0) return false; // 5목은 금수가 아님
+
+    // 열린 4 또는 닫힌 4
+    if ((line.match(/_XXXX/g) || []).length > 0) return true;
+    if ((line.match(/X_XXX/g) || []).length > 0) return true;
+    if ((line.match(/XX_XX/g) || []).length > 0) return true;
+    if ((line.match(/XXX_X/g) || []).length > 0) return true;
+    if ((line.match(/XXXX_/g) || []).length > 0) return true;
+
+    return false;
+}
+
+/**
+ * 특정 축을 기준으로 돌의 배열을 문자열로 반환합니다.
+ * @param board 바둑판 상태
+ * @param r 행
+ * @param c 열
+ * @param dr 방향 벡터 (행)
+ * @param dc 방향 벡터 (열)
+ * @param player 현재 플레이어
+ * @param length 확인할 길이
+ * @returns 라인 문자열 (예: "O_X_X_")
+ */
+function getLine(board: (string | null)[][], r: number, c: number, dr: number, dc: number, player: string, length: number): string {
+    let line = '';
+    for (let i = -length; i <= length; i++) {
+        const curR = r + i * dr;
+        const curC = c + i * dc;
+
+        if (!isInBounds(curR, curC)) {
+            line += 'O'; // 'O'는 상대방 돌 또는 벽
+        } else if (board[curR][curC] === null) {
+            line += '_';
+        } else if (board[curR][curC] === player) {
+            line += 'X';
+        } else {
+            line += 'O';
+        }
+    }
+    return line;
 }
 
 async function saveGameResult(winnerId: string, loserId: string, blackPlayerId: string, whitePlayerId: string, moveCount: number, winnerColor: string) {

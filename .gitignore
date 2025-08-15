@@ -15,6 +15,7 @@ yarn-error.log*
 # Ignore the .env file in the backend directory
 /gomoku-backend/.env
 /gomoku-backend/node_modules
+/gomoku-backend/generated
 
 # Frontend (Create React App)
 /gomoku-frontend/build
