@@ -28,5 +28,5 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 .aiexclude
-refactor-plan.txt
 .vscode/
+refactor-plan.md
