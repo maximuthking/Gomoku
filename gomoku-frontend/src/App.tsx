@@ -3,6 +3,8 @@ import './App.css';
 import Login from './components/Login';
 import Lobby from './components/Lobby';
 import GameRoom from './components/GameRoom';
+import Profile from './components/Profile';
+import { fetchProfile, updateNickname } from './api/client';
 
 // Define a type for the user object
 interface User {
@@ -19,53 +21,35 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [viewingProfile, setViewingProfile] = useState(false);
 
   useEffect(() => {
     // Fetch user profile to check for an active session
-    const fetchUser = async () => {
+    const checkSession = async () => {
       try {
-        // The credentials option is important for sending cookies
-        const response = await fetch('http://localhost:4000/api/profile', { credentials: 'include' });
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
-        } else {
-          // Not logged in
-          setUser(null);
-        }
+        const userData = await fetchProfile();
+        setUser(userData);
       } catch (error) {
-        console.error('Error fetching user profile:', error);
+        // If fetchProfile throws an error (e.g., 401), it means user is not logged in
         setUser(null);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchUser();
+    checkSession();
   }, []);
 
   const handleNicknameUpdate = async (nickname: string) => {
     if (!user) return;
 
     try {
-      const response = await fetch('http://localhost:4000/api/profile/nickname', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ nickname }),
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const updatedUser = await response.json();
-        setUser(updatedUser);
-      } else {
-        console.error('Failed to update nickname');
-        // Optionally, show an error message to the user
-      }
+      const updatedUser = await updateNickname(nickname);
+      setUser(updatedUser);
     } catch (error) {
-      console.error('Error updating nickname:', error);
+      console.error('Failed to update nickname:', error);
+      // Optionally, show an error message to the user
+      // e.g., alert((error as Error).message);
     }
   };
 
@@ -98,7 +82,10 @@ function App() {
     if (activeRoomId && user.id && user.nickname) {
       return <GameRoom roomId={activeRoomId} user={{ id: user.id!, nickname: user.nickname! }} onLeave={handleLeaveRoom} />;
     }
-    return <Lobby user={user} onNicknameUpdate={handleNicknameUpdate} onJoinRoom={handleJoinRoom} />;
+    if (viewingProfile) {
+      return <Profile user={user} onBack={() => setViewingProfile(false)} />;
+    }
+    return <Lobby user={user} onNicknameUpdate={handleNicknameUpdate} onJoinRoom={handleJoinRoom} onNavigateToProfile={() => setViewingProfile(true)} />;
   };
 
   return (

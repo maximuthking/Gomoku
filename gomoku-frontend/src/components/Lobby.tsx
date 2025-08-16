@@ -9,6 +9,7 @@ interface LobbyProps {
   };
   onNicknameUpdate: (nickname: string) => void;
   onJoinRoom: (roomId: string) => void;
+  onNavigateToProfile: () => void;
 }
 
 interface Room {
@@ -16,7 +17,7 @@ interface Room {
   name: string;
 }
 
-const Lobby: React.FC<LobbyProps> = ({ user, onNicknameUpdate, onJoinRoom }) => {
+const Lobby: React.FC<LobbyProps> = ({ user, onNicknameUpdate, onJoinRoom, onNavigateToProfile }) => {
   const [nickname, setNickname] = useState(user.nickname || '');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [newRoomName, setNewRoomName] = useState('');
@@ -27,19 +28,16 @@ const Lobby: React.FC<LobbyProps> = ({ user, onNicknameUpdate, onJoinRoom }) => 
     setSocket(newSocket);
 
     // Fetch initial room list
-    const fetchRooms = async () => {
+    const getRooms = async () => {
       try {
-        const response = await fetch('http://localhost:4000/api/rooms');
-        if (response.ok) {
-          const roomData = await response.json();
-          setRooms(roomData);
-        }
+        const roomData = await fetchRooms();
+        setRooms(roomData);
       } catch (error) {
         console.error('Error fetching rooms:', error);
       }
     };
 
-    fetchRooms();
+    getRooms();
 
     newSocket.on('roomListUpdate', (updatedRooms: Room[]) => {
       setRooms(updatedRooms);
@@ -81,6 +79,7 @@ const Lobby: React.FC<LobbyProps> = ({ user, onNicknameUpdate, onJoinRoom }) => 
     <div>
       <h1>Gomoku Lobby</h1>
       <p>Welcome, {user.nickname}!</p>
+      <button onClick={onNavigateToProfile}>View Profile</button>
       
       <div>
         <h2>Create a New Room</h2>

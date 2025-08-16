@@ -6,7 +6,8 @@
     "socket.io": "^4.8.1"
   },
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts"
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "test": "../node_modules/.bin/jest"
   },
   "devDependencies": {
     "ts-node": "^10.9.2",

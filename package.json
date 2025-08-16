@@ -1,6 +1,11 @@
 {
   "name": "gomoku",
   "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "gomoku-frontend",
+    "gomoku-backend"
+  ],
   "description": "",
   "main": "index.js",
   "scripts": {
