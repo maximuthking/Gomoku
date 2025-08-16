@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { fetchRooms } from '../api/client';
 
 interface LobbyProps {
   user: {

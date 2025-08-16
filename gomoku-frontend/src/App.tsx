@@ -4,6 +4,7 @@ import Login from './components/Login';
 import Lobby from './components/Lobby';
 import GameRoom from './components/GameRoom';
 import Profile from './components/Profile';
+import ForbiddenPatternEditor from './components/ForbiddenPatternEditor';
 import { fetchProfile, updateNickname } from './api/client';
 
 // Define a type for the user object
@@ -76,6 +77,11 @@ function App() {
   }
 
   const renderContent = () => {
+    // Simple routing based on pathname
+    if (window.location.pathname === '/forbidden-pattern-editor') {
+      return <ForbiddenPatternEditor />;
+    }
+
     if (!user) {
       return <Login onGuestLogin={handleGuestLogin} />;
     }

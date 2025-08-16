@@ -1,0 +1,26 @@
+[
+  {
+    "id": "23134d6c-4e3b-4ba9-813f-fa53fc2fd5e0",
+    "name": "3-3 (A)",
+    "description": "",
+    "isRotatable": true,
+    "isFlippable": true,
+    "pattern": [
+      [
+        0,
+        1,
+        0
+      ],
+      [
+        0,
+        1,
+        0
+      ],
+      [
+        1,
+        2,
+        1
+      ]
+    ]
+  }
+]

@@ -3,11 +3,13 @@ import {
   rooms,
   gameStates,
   checkWin,
+  checkOverline,
   saveGameResult,
   Room,
   GameState,
   PlayerColor,
 } from '../services/gameService';
+import { isMoveForbidden } from '../services/ruleService';
 
 // Helper function to handle forfeits
 function handleForfeit(io: Server, roomId: string, disconnectedPlayerColor: PlayerColor) {
@@ -88,7 +90,7 @@ export function initSocket(io: Server) {
       io.to(roomId).emit('updateGame', gameState);
     });
 
-    socket.on('placeStone', ({ roomId, row, col }: { roomId: string; row: number; col: number }) => {
+    socket.on('placeStone', async ({ roomId, row, col }: { roomId: string; row: number; col: number }) => {
       const gameState = gameStates.get(roomId);
       if (!gameState || gameState.winner) return;
 
@@ -100,6 +102,38 @@ export function initSocket(io: Server) {
         if (gameState.board[row][col] === null) {
           gameState.board[row][col] = playerColor;
 
+          // --- Rule checks for Black player ---
+          if (playerColor === 'black') {
+            // 1. Check for overlines, which is a loss for black.
+            if (checkOverline(gameState.board, row, col)) {
+              gameState.winner = 'white'; // White wins
+              const winner = gameState.players.white;
+              const loser = gameState.players.black;
+              if (winner && loser) {
+                const moveCount = gameState.board.flat().filter(c => c).length;
+                saveGameResult(winner.id, loser.id, loser.id, winner.id, moveCount, 'white');
+                io.to(roomId).emit('gameOver', { winner: 'white', message: 'Black loses due to an overline.' });
+              }
+              io.to(roomId).emit('updateGame', gameState);
+              return; // End the move processing
+            }
+
+            // 2. Check for other forbidden patterns (3-3, 4-4, etc.)
+            if (await isMoveForbidden(gameState.board, row, col, playerColor)) {
+              gameState.winner = 'white'; // White wins
+              const winner = gameState.players.white;
+              const loser = gameState.players.black;
+              if (winner && loser) {
+                const moveCount = gameState.board.flat().filter(c => c).length;
+                saveGameResult(winner.id, loser.id, loser.id, winner.id, moveCount, 'white');
+                io.to(roomId).emit('gameOver', { winner: 'white', message: `Black loses due to a forbidden move.` });
+              }
+              io.to(roomId).emit('updateGame', gameState);
+              return; // End the move processing
+            }
+          }
+
+          // --- Win check for both players ---
           if (checkWin(gameState.board, row, col)) {
             gameState.winner = playerColor;
             const winner = gameState.players[playerColor];

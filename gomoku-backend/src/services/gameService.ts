@@ -62,6 +62,45 @@ export function checkWin(board: (PlayerColor | null)[][], row: number, col: numb
   return false;
 }
 
+export function checkOverline(board: (PlayerColor | null)[][], row: number, col: number): boolean {
+  const player = board[row][col];
+  if (!player) return false;
+
+  const directions = [
+    { x: 1, y: 0 }, // Horizontal
+    { x: 0, y: 1 }, // Vertical
+    { x: 1, y: 1 }, // Diagonal \
+    { x: 1, y: -1 }, // Diagonal /
+  ];
+
+  for (const dir of directions) {
+    let count = 1;
+    // Check in the positive direction
+    for (let i = 1; i < 6; i++) { // Check up to 6 stones for overline
+      const newRow = row + dir.y * i;
+      const newCol = col + dir.x * i;
+      if (newRow >= 0 && newRow < 15 && newCol >= 0 && newCol < 15 && board[newRow][newCol] === player) {
+        count++;
+      } else {
+        break;
+      }
+    }
+    // Check in the negative direction
+    for (let i = 1; i < 6; i++) { // Check up to 6 stones for overline
+      const newRow = row - dir.y * i;
+      const newCol = col - dir.x * i;
+      if (newRow >= 0 && newRow < 15 && newCol >= 0 && newCol < 15 && board[newRow][newCol] === player) {
+        count++;
+      } else {
+        break;
+      }
+    }
+    if (count > 5) return true; // Overline is 6 or more stones
+  }
+
+  return false;
+}
+
 export async function saveGameResult(
   winnerId: string,
   loserId: string,

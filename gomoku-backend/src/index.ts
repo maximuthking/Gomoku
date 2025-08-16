@@ -15,6 +15,7 @@ import { Server } from 'socket.io';
 import './passport-setup';
 
 import apiRoutes from './routes/api';
+import patternRoutes from './routes/patternRoutes';
 import { initSocket } from './socket';
 
 const app = express();
@@ -42,6 +43,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // API Routes
+app.use('/api', patternRoutes);
 app.use('/', apiRoutes);
 
 // Setup Server and Socket.IO

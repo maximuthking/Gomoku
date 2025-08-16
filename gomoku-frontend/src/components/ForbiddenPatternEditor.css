@@ -1,0 +1,153 @@
+.editor-layout {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
+  font-family: sans-serif;
+}
+
+.tools-panel, .pattern-list {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.tools-panel {
+  padding-right: 20px;
+  border-right: 1px solid #ccc;
+}
+
+.pattern-list {
+  padding-left: 20px;
+  border-left: 1px solid #ccc;
+}
+
+.editor-main {
+  flex-grow: 1;
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.board {
+  border: 2px solid #333;
+  background-color: #f0d9b5;
+  cursor: pointer;
+}
+
+.tool-selection button, .action-buttons button {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    background-color: #f0f0f0;
+    cursor: pointer;
+    text-align: left;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.tool-selection button.active {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+    font-weight: bold;
+}
+
+.metadata-editor h3 {
+    margin-top: 0;
+}
+
+.metadata-editor label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.metadata-editor input[type="text"],
+.metadata-editor textarea {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.metadata-editor textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.checkbox-wrapper input {
+    margin-right: 10px;
+}
+
+.action-buttons {
+    margin-top: auto;
+}
+
+.action-buttons .save-button {
+    background-color: #28a745;
+    color: white;
+    font-weight: bold;
+}
+
+.pattern-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto;
+}
+
+.pattern-list li {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+
+.pattern-list li:hover {
+    background-color: #f5f5f5;
+}
+
+.pattern-list li.active {
+    background-color: #e7f3ff;
+    border-color: #007bff;
+    font-weight: bold;
+}
+
+.pattern-list .pattern-name {
+    flex-grow: 1;
+}
+
+.pattern-list .delete-button {
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.pattern-list .delete-button:hover {
+    opacity: 1;
+}
