@@ -6,32 +6,23 @@ import GameRoom from './components/GameRoom';
 import Profile from './components/Profile';
 import ForbiddenPatternEditor from './components/ForbiddenPatternEditor';
 import { fetchProfile, updateNickname } from './api/client';
+import { UserProfile, PublicUser } from '@gomoku/common/types';
 
-// Define a type for the user object
-interface User {
-  id?: string;
-  googleId?: string;
-  displayName?: string;
-  email?: string;
-  nickname?: string;
-  isGuest?: boolean;
-  // add other user properties here if they exist
-}
+// Extend UserProfile to include optional guest status for frontend state
+type AppUser = UserProfile & { isGuest?: boolean };
 
 function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [viewingProfile, setViewingProfile] = useState(false);
 
   useEffect(() => {
-    // Fetch user profile to check for an active session
     const checkSession = async () => {
       try {
         const userData = await fetchProfile();
         setUser(userData);
       } catch (error) {
-        // If fetchProfile throws an error (e.g., 401), it means user is not logged in
         setUser(null);
       } finally {
         setLoading(false);
@@ -46,11 +37,10 @@ function App() {
 
     try {
       const updatedUser = await updateNickname(nickname);
-      setUser(updatedUser);
+      setUser({ ...user, ...updatedUser });
     } catch (error) {
       console.error('Failed to update nickname:', error);
-      // Optionally, show an error message to the user
-      // e.g., alert((error as Error).message);
+      alert((error as Error).message);
     }
   };
 
@@ -63,12 +53,14 @@ function App() {
   };
 
   const handleGuestLogin = () => {
-    const guestId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const guestNickname = `Guest${Math.floor(Math.random() * 10000)}`;
-    setUser({ 
+    const guestId = `guest_${Date.now()}`;
+    setUser({
       id: guestId,
-      nickname: guestNickname, 
-      isGuest: true 
+      email: `${guestId}@guest.com`,
+      name: 'Guest User',
+      nickname: `Guest${Math.floor(Math.random() * 1000)}`,
+      profileImage: null,
+      isGuest: true,
     });
   };
 
@@ -77,7 +69,6 @@ function App() {
   }
 
   const renderContent = () => {
-    // Simple routing based on pathname
     if (window.location.pathname === '/forbidden-pattern-editor') {
       return <ForbiddenPatternEditor />;
     }
@@ -85,13 +76,16 @@ function App() {
     if (!user) {
       return <Login onGuestLogin={handleGuestLogin} />;
     }
-    if (activeRoomId && user.id && user.nickname) {
-      return <GameRoom roomId={activeRoomId} user={{ id: user.id!, nickname: user.nickname! }} onLeave={handleLeaveRoom} />;
+
+    const publicUser: PublicUser = { id: user.id, nickname: user.nickname || '' };
+
+    if (activeRoomId && publicUser.nickname) {
+      return <GameRoom roomId={activeRoomId} user={publicUser} onLeave={handleLeaveRoom} />;
     }
     if (viewingProfile) {
-      return <Profile user={user} onBack={() => setViewingProfile(false)} />;
+      return <Profile user={publicUser} onBack={() => setViewingProfile(false)} />;
     }
-    return <Lobby user={user} onNicknameUpdate={handleNicknameUpdate} onJoinRoom={handleJoinRoom} onNavigateToProfile={() => setViewingProfile(true)} />;
+    return <Lobby user={{...publicUser, isGuest: user.isGuest, displayName: user.name}} onNicknameUpdate={handleNicknameUpdate} onJoinRoom={handleJoinRoom} onNavigateToProfile={() => setViewingProfile(true)} />;
   };
 
   return (

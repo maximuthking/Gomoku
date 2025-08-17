@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { fetchStats, fetchRivals } from '../api/client';
+import { PublicUser } from '@gomoku/common/types';
 
 interface ProfileProps {
-  user: {
-    nickname?: string;
-  };
+  user: PublicUser;
   onBack: () => void;
 }
 
@@ -33,7 +32,6 @@ const Profile: React.FC<ProfileProps> = ({ user, onBack }) => {
     const getData = async () => {
       try {
         setLoading(true);
-        // Fetch stats and rivals in parallel
         const [statsData, rivalsData] = await Promise.all([
           fetchStats(),
           fetchRivals(),

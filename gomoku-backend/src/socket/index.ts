@@ -1,190 +1,138 @@
 import { Server, Socket } from 'socket.io';
-import {
-  rooms,
-  gameStates,
-  checkWin,
-  checkOverline,
-  saveGameResult,
-  Room,
-  GameState,
-  PlayerColor,
-} from '../services/gameService';
-import { isMoveForbidden } from '../services/ruleService';
+import * as gameService from '../services/gameService';
 
-// Helper function to handle forfeits
-function handleForfeit(io: Server, roomId: string, disconnectedPlayerColor: PlayerColor) {
-  const gameState = gameStates.get(roomId);
-  if (!gameState || gameState.winner) {
-    return; // Game already over or does not exist
-  }
+// In-memory mapping from socket.id to userId
+const socketUserMap = new Map<string, string>();
 
-  const winnerColor = disconnectedPlayerColor === 'black' ? 'white' : 'black';
-  const winner = gameState.players[winnerColor];
-  const loser = gameState.players[disconnectedPlayerColor];
-  const blackPlayer = gameState.players.black;
-  const whitePlayer = gameState.players.white;
+function safeEmit(socket: Socket, event: string, data: any) {
+    if (socket.connected) {
+        socket.emit(event, data);
+    }
+}
 
-  if (winner && loser && blackPlayer && whitePlayer) {
-    gameState.winner = winnerColor;
-    const moveCount = gameState.board.flat().filter((cell) => cell !== null).length;
-    saveGameResult(winner.id, loser.id, blackPlayer.id, whitePlayer.id, moveCount, winnerColor);
-    
-    io.to(roomId).emit('updateGame', gameState);
-    io.to(roomId).emit('playerForfeited', `${disconnectedPlayerColor} has left the game. ${winnerColor} wins by forfeit.`);
-    
-    // Clean up the game state after a short delay
-    setTimeout(() => gameStates.delete(roomId), 5000);
-  } else {
-    // If only one player was in the room, just clean it up
-    gameStates.delete(roomId);
-  }
+function safeBroadcast(socket: Socket, roomId: string, event: string, data: any) {
+    socket.to(roomId).emit(event, data);
 }
 
 export function initSocket(io: Server) {
   io.on('connection', (socket: Socket) => {
-    console.log(`User connected: ${socket.id}`);
+    const userId = socket.handshake.query.userId as string;
+    if (userId) {
+      console.log(`User connected: ${socket.id}, User ID: ${userId}`);
+      socketUserMap.set(socket.id, userId);
+    } else {
+      console.log(`User connected with no ID: ${socket.id}`);
+    }
 
-    socket.on('createRoom', ({ name }: { name: string }) => {
-      const newRoom: Room = {
-        id: `room_${Date.now()}`,
-        name,
-      };
-      rooms.push(newRoom);
-      io.emit('roomListUpdate', rooms);
+    socket.on('getRooms', async () => {
+        try {
+            const rooms = await gameService.getRooms();
+            safeEmit(socket, 'roomListUpdate', rooms);
+        } catch (error) {
+            console.error('Error getting rooms:', error);
+            safeEmit(socket, 'error', 'Could not fetch rooms.');
+        }
     });
 
-    socket.on('joinRoom', (roomId: string) => {
-      socket.join(roomId);
-      console.log(`User ${socket.id} joined room ${roomId}`);
-      socket.to(roomId).emit('userJoined', `A user has joined the room.`);
-
-      if (!gameStates.has(roomId)) {
-        gameStates.set(roomId, {
-          board: Array(15).fill(null).map(() => Array(15).fill(null)),
-          players: { black: null, white: null },
-          currentPlayer: 'black',
-          winner: null,
-        });
-      }
-      socket.emit('updateGame', gameStates.get(roomId));
+    socket.on('createRoom', async ({ name }: { name: string }) => {
+        const userId = socketUserMap.get(socket.id);
+        if (!userId) return safeEmit(socket, 'error', 'Authentication required.');
+        try {
+            await gameService.createRoom(name, userId);
+            const rooms = await gameService.getRooms();
+            io.emit('roomListUpdate', rooms); // Broadcast to all clients
+        } catch (error) {
+            console.error('Error creating room:', error);
+            safeEmit(socket, 'error', 'Could not create room.');
+        }
     });
 
-    socket.on('playerReady', ({ roomId, userId }: { roomId: string; userId: string }) => {
-      const gameState = gameStates.get(roomId);
-      if (!gameState) return;
+    socket.on('joinRoom', async (roomId: string) => {
+        const userId = socketUserMap.get(socket.id);
+        if (!userId) return safeEmit(socket, 'error', 'Authentication required.');
+        try {
+            socket.join(roomId);
+            console.log(`User ${userId} (${socket.id}) joined room ${roomId}`);
+            
+            const game = await gameService.joinRoom(roomId, userId);
+            if (game) {
+                io.to(roomId).emit('gameStart', game);
+            }
+            const rooms = await gameService.getRooms();
+            io.emit('roomListUpdate', rooms);
 
-      const isPlayerAlreadyIn = gameState.players.black?.id === userId || gameState.players.white?.id === userId;
-      if (isPlayerAlreadyIn) {
-        io.to(roomId).emit('updateGame', gameState); // Re-send state to reconnecting player
-        return;
-      }
+        } catch (error) {
+            console.error(`Error joining room ${roomId}:`, error);
+            safeEmit(socket, 'error', (error as Error).message);
+        }
+    });
 
-      if (!gameState.players.black) {
-        gameState.players.black = { id: userId, socketId: socket.id };
-        console.log(`Player black set: ${userId}`);
-      } else if (!gameState.players.white) {
-        gameState.players.white = { id: userId, socketId: socket.id };
-        console.log(`Player white set: ${userId}`);
-      }
-
-      io.to(roomId).emit('updateGame', gameState);
+    socket.on('getGame', async (roomId: string) => {
+        try {
+            const game = await gameService.getGame(roomId);
+            safeEmit(socket, 'updateGame', game);
+        } catch (error) {
+            console.error(`Error getting game for room ${roomId}:`, error);
+            safeEmit(socket, 'error', 'Could not get game details.');
+        }
     });
 
     socket.on('placeStone', async ({ roomId, row, col }: { roomId: string; row: number; col: number }) => {
-      const gameState = gameStates.get(roomId);
-      if (!gameState || gameState.winner) return;
+        const userId = socketUserMap.get(socket.id);
+        if (!userId) return safeEmit(socket, 'error', 'Authentication required.');
+        try {
+            const updatedGame = await gameService.makeMove(roomId, userId, row, col);
+            io.to(roomId).emit('updateGame', updatedGame);
 
-      const playerColor = Object.keys(gameState.players).find((color) =>
-        gameState.players[color as PlayerColor]?.socketId === socket.id
-      ) as PlayerColor | undefined;
-
-      if (playerColor && gameState.currentPlayer === playerColor) {
-        if (gameState.board[row][col] === null) {
-          gameState.board[row][col] = playerColor;
-
-          // --- Rule checks for Black player ---
-          if (playerColor === 'black') {
-            // 1. Check for overlines, which is a loss for black.
-            if (checkOverline(gameState.board, row, col)) {
-              gameState.winner = 'white'; // White wins
-              const winner = gameState.players.white;
-              const loser = gameState.players.black;
-              if (winner && loser) {
-                const moveCount = gameState.board.flat().filter(c => c).length;
-                saveGameResult(winner.id, loser.id, loser.id, winner.id, moveCount, 'white');
-                io.to(roomId).emit('gameOver', { winner: 'white', message: 'Black loses due to an overline.' });
-              }
-              io.to(roomId).emit('updateGame', gameState);
-              return; // End the move processing
+            if (updatedGame.status === 'FINISHED') {
+                io.to(roomId).emit('gameOver', {
+                    winner: updatedGame.winnerId,
+                    message: updatedGame.gameOverMessage,
+                });
             }
-
-            // 2. Check for other forbidden patterns (3-3, 4-4, etc.)
-            if (await isMoveForbidden(gameState.board, row, col, playerColor)) {
-              gameState.winner = 'white'; // White wins
-              const winner = gameState.players.white;
-              const loser = gameState.players.black;
-              if (winner && loser) {
-                const moveCount = gameState.board.flat().filter(c => c).length;
-                saveGameResult(winner.id, loser.id, loser.id, winner.id, moveCount, 'white');
-                io.to(roomId).emit('gameOver', { winner: 'white', message: `Black loses due to a forbidden move.` });
-              }
-              io.to(roomId).emit('updateGame', gameState);
-              return; // End the move processing
-            }
-          }
-
-          // --- Win check for both players ---
-          if (checkWin(gameState.board, row, col)) {
-            gameState.winner = playerColor;
-            const winner = gameState.players[playerColor];
-            const loserColor = playerColor === 'black' ? 'white' : 'black';
-            const loser = gameState.players[loserColor];
-            const blackPlayer = gameState.players.black;
-            const whitePlayer = gameState.players.white;
-
-            if (winner && loser && blackPlayer && whitePlayer) {
-              const moveCount = gameState.board.flat().filter((cell) => cell !== null).length;
-              saveGameResult(winner.id, loser.id, blackPlayer.id, whitePlayer.id, moveCount, playerColor);
-            }
-          } else {
-            gameState.currentPlayer = playerColor === 'black' ? 'white' : 'black';
-          }
-
-          io.to(roomId).emit('updateGame', gameState);
+        } catch (error) {
+            console.error(`Error placing stone in room ${roomId}:`, error);
+            safeEmit(socket, 'error', (error as Error).message);
         }
-      }
     });
 
     socket.on('chatMessage', ({ roomId, message }: { roomId: string; message: string }) => {
-      io.to(roomId).emit('chatMessage', message);
+        const userId = socketUserMap.get(socket.id);
+        // Add sender information to the message
+        io.to(roomId).emit('chatMessage', { userId, message });
     });
 
-    socket.on('leaveRoom', (roomId: string) => {
-      socket.leave(roomId);
-      console.log(`User ${socket.id} left room ${roomId}`);
-      
-      const playerColor = Object.keys(gameStates.get(roomId)?.players || {}).find((color) =>
-        gameStates.get(roomId)!.players[color as PlayerColor]?.socketId === socket.id
-      ) as PlayerColor | undefined;
-
-      if (playerColor) {
-        handleForfeit(io, roomId, playerColor);
-      }
-    });
-
-    socket.on('disconnect', () => {
-      console.log(`User disconnected: ${socket.id}`);
-      for (const [roomId, gameState] of gameStates.entries()) {
-        const playerColor = Object.keys(gameState.players).find((color) =>
-          gameState.players[color as PlayerColor]?.socketId === socket.id
-        ) as PlayerColor | undefined;
-
-        if (playerColor) {
-          console.log(`Player ${playerColor} (${socket.id}) disconnected from room ${roomId}`);
-          handleForfeit(io, roomId, playerColor);
-          break;
+    socket.on('leaveRoom', async (roomId: string) => {
+        const userId = socketUserMap.get(socket.id);
+        if (!userId) return;
+        try {
+            socket.leave(roomId);
+            console.log(`User ${userId} (${socket.id}) left room ${roomId}`);
+            const result = await gameService.handleDisconnect(userId);
+            if (result) {
+                io.to(result.roomId).emit('playerForfeited', result.message);
+            }
+        } catch (error) {
+            console.error(`Error leaving room ${roomId}:`, error);
         }
-      }
+    });
+
+    socket.on('disconnect', async () => {
+        const userId = socketUserMap.get(socket.id);
+        if (userId) {
+            console.log(`User disconnected: ${socket.id}, User ID: ${userId}`);
+            try {
+                const result = await gameService.handleDisconnect(userId);
+                if (result) {
+                    io.to(result.roomId).emit('playerForfeited', result.message);
+                    const rooms = await gameService.getRooms();
+                    io.emit('roomListUpdate', rooms);
+                }
+            } catch (error) {
+                console.error(`Error handling disconnect for user ${userId}:`, error);
+            }
+            socketUserMap.delete(socket.id);
+        }
     });
   });
 }

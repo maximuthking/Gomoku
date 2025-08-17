@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './ForbiddenPatternEditor.css';
 import * as patternClient from '../api/patternClient';
+import { Pattern } from '@gomoku/common/types';
 
-type Pattern = patternClient.Pattern;
 type Tool = 'BLACK' | 'WHITE' | 'ANCHOR' | 'ERASER';
 
 const BOARD_SIZE = 15;
