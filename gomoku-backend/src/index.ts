@@ -4,7 +4,8 @@ import path from 'path';
 // Load environment variables from .env file in the parent directory
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
+import 'express-async-errors'; // Must be imported before routes
 import session from 'express-session';
 import passport from 'passport';
 import cors from 'cors';
@@ -45,6 +46,16 @@ app.use(passport.session());
 // API Routes
 app.use('/api', patternRoutes);
 app.use('/', apiRoutes);
+
+// Central Error Handler
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  console.error(err.stack);
+  // Handle Prisma-specific errors
+  if ((err as any).code === 'P2002') {
+    return res.status(409).json({ message: 'A resource with this value already exists.' });
+  }
+  res.status(500).json({ message: err.message || 'Something went wrong!' });
+});
 
 // Setup Server and Socket.IO
 const server = http.createServer(app);

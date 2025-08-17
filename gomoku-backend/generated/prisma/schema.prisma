@@ -11,25 +11,80 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum RoomStatus {
+  WAITING
+  PLAYING
+  FINISHED
+}
+
+enum GameStatus {
+  IN_PROGRESS
+  FINISHED
+}
+
 model User {
-  id            String       @id @default(cuid())
-  googleId      String       @unique
-  email         String       @unique
-  name          String
-  nickname      String?      @unique
-  profileImage  String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  stats         UserStats[]
-  gamesAsWinner GameRecord[] @relation("Winner")
-  gamesAsLoser  GameRecord[] @relation("Loser")
-  gamesAsBlack  GameRecord[] @relation("BlackPlayer")
-  gamesAsWhite  GameRecord[] @relation("WhitePlayer")
+  id           String   @id @default(cuid())
+  googleId     String   @unique
+  email        String   @unique
+  name         String
+  nickname     String?  @unique
+  profileImage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Game history
+  stats            UserStats[]
+  gameRecordsWon   GameRecord[] @relation("Winner")
+  gameRecordsLost  GameRecord[] @relation("Loser")
+  gameRecordsBlack GameRecord[] @relation("BlackPlayer")
+  gameRecordsWhite GameRecord[] @relation("WhitePlayer")
+
+  // Live game state
+  room   Room?   @relation("RoomPlayers", fields: [roomId], references: [id])
+  roomId String?
+
+  currentGame  Game?  @relation("CurrentPlayer")
+  gamesAsBlack Game[] @relation("GameBlackPlayer")
+  gamesAsWhite Game[] @relation("GameWhitePlayer")
+  gamesWon     Game[] @relation("GameWinner")
+}
+
+model Room {
+  id        String     @id @default(cuid())
+  name      String
+  status    RoomStatus @default(WAITING)
+  players   User[]     @relation("RoomPlayers")
+  game      Game?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Game {
+  id              String     @id @default(cuid())
+  board           Json
+  currentPlayerId String     @unique // Enforces 1-to-1 with User.currentGame
+  blackPlayerId   String
+  whitePlayerId   String
+  winnerId        String?
+  status          GameStatus @default(IN_PROGRESS)
+  room            Room       @relation(fields: [roomId], references: [id])
+  roomId          String     @unique // Enforces 1-to-1 with Room.game
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  currentPlayer User  @relation("CurrentPlayer", fields: [currentPlayerId], references: [id])
+  blackPlayer   User  @relation("GameBlackPlayer", fields: [blackPlayerId], references: [id])
+  whitePlayer   User  @relation("GameWhitePlayer", fields: [whitePlayerId], references: [id])
+  winner        User? @relation("GameWinner", fields: [winnerId], references: [id])
+
+  @@index([blackPlayerId])
+  @@index([whitePlayerId])
+  @@index([winnerId])
 }
 
 model GameRecord {
   id            String   @id @default(cuid())
-  gameType      String // e.g., "GOMOKU", "ALKKAGI"
+  gameType      String
   winnerId      String
   loserId       String
   blackPlayerId String
@@ -37,10 +92,11 @@ model GameRecord {
   moveCount     Int
   startedAt     DateTime @default(now())
   endedAt       DateTime
-  winner        User     @relation("Winner", fields: [winnerId], references: [id])
-  loser         User     @relation("Loser", fields: [loserId], references: [id])
-  blackPlayer   User     @relation("BlackPlayer", fields: [blackPlayerId], references: [id])
-  whitePlayer   User     @relation("WhitePlayer", fields: [whitePlayerId], references: [id])
+
+  winner      User @relation("Winner", fields: [winnerId], references: [id])
+  loser       User @relation("Loser", fields: [loserId], references: [id])
+  blackPlayer User @relation("BlackPlayer", fields: [blackPlayerId], references: [id])
+  whitePlayer User @relation("WhitePlayer", fields: [whitePlayerId], references: [id])
 
   @@index([winnerId])
   @@index([loserId])
@@ -49,7 +105,7 @@ model GameRecord {
 model UserStats {
   id          String @id @default(cuid())
   userId      String
-  gameType    String // e.g., "GOMOKU", "ALKKAGI"
+  gameType    String
   totalPlays  Int    @default(0)
   wins        Int    @default(0)
   losses      Int    @default(0)

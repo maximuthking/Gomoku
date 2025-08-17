@@ -1,52 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
 import Board from './Board';
+import { GameState, PlayerColor, PublicUser } from '@gomoku/common/types';
 
 interface GameRoomProps {
   roomId: string;
-  user: { id: string, nickname: string };
+  user: PublicUser;
   onLeave: () => void;
-}
-
-type Player = 'black' | 'white';
-
-interface GameState {
-  board: (Player | null)[][];
-  players: { 
-    black: { id: string, socketId: string } | null;
-    white: { id: string, socketId: string } | null;
-  };
-  currentPlayer: Player;
-  winner: Player | null;
 }
 
 const GameRoom: React.FC<GameRoomProps> = ({ roomId, user, onLeave }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [messages, setMessages] = useState<string[]>([]);
+  const [messages, setMessages] = useState<{ userId: string, message: string }[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [playerColor, setPlayerColor] = useState<Player | null>(null);
+  const [playerColor, setPlayerColor] = useState<PlayerColor | null>(null);
 
   useEffect(() => {
-    const newSocket = io('http://localhost:4000');
+    // Connect with userId to map socket id on the backend
+    const newSocket = io('http://localhost:4000', { query: { userId: user.id } });
     setSocket(newSocket);
 
+    // Request the full game state upon joining
     newSocket.emit('joinRoom', roomId);
-    // Assuming user.id is available and correct
-    if(user.id) {
-      newSocket.emit('playerReady', { roomId, userId: user.id });
-    }
 
-    newSocket.on('userJoined', (message: string) => {
-      setMessages((prev) => [...prev, message]);
-    });
-
-    newSocket.on('playerDisconnected', (message: string) => {
-      setMessages((prev) => [...prev, `Notice: ${message}`]);
-    });
-
-    newSocket.on('chatMessage', (message: string) => {
-      setMessages((prev) => [...prev, message]);
+    newSocket.on('gameStart', (initialGameState: GameState) => {
+        setGameState(initialGameState);
     });
 
     newSocket.on('updateGame', (newGameState: GameState) => {
@@ -58,6 +37,18 @@ const GameRoom: React.FC<GameRoomProps> = ({ roomId, user, onLeave }) => {
       }
     });
 
+    newSocket.on('chatMessage', (message: { userId: string, message: string }) => {
+      setMessages((prev) => [...prev, message]);
+    });
+
+    newSocket.on('playerForfeited', (message: string) => {
+        setMessages((prev) => [...prev, { userId: 'System', message }]);
+    });
+
+    newSocket.on('gameOver', ({ message }: { message: string }) => {
+        setMessages((prev) => [...prev, { userId: 'System', message }]);
+    });
+
     return () => {
       newSocket.disconnect();
     };
@@ -65,7 +56,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ roomId, user, onLeave }) => {
 
   const sendMessage = () => {
     if (socket && newMessage.trim()) {
-      socket.emit('chatMessage', { roomId, message: `${user.nickname}: ${newMessage}` });
+      socket.emit('chatMessage', { roomId, message: newMessage });
       setNewMessage('');
     }
   };
@@ -75,15 +66,14 @@ const GameRoom: React.FC<GameRoomProps> = ({ roomId, user, onLeave }) => {
       <h1>Game Room: {roomId}</h1>
       {playerColor && <h2>You are playing as {playerColor}</h2>}
       {gameState?.winner ? (
-        <h2>Winner: {gameState.winner}</h2>
+        <h2>Winner: {gameState.winner.nickname}</h2>
       ) : (
-        <h2>Current Turn: {gameState?.currentPlayer}</h2>
+        <h2>Current Turn: {gameState?.currentPlayer.nickname}</h2>
       )}
       <div className="game-container">
         {gameState && (
           <Board 
             board={gameState.board} 
-            currentPlayer={gameState.currentPlayer}
             playerColor={playerColor}
             socket={socket} 
             roomId={roomId} 
@@ -93,7 +83,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ roomId, user, onLeave }) => {
         <div className="chat-box">
           <div className="messages">
             {messages.map((msg, index) => (
-              <div key={index}>{msg}</div>
+              <div key={index}><strong>{msg.userId === 'System' ? '[SYSTEM]' : msg.userId}:</strong> {msg.message}</div>
             ))}
           </div>
           <input

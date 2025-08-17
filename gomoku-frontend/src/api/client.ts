@@ -1,3 +1,5 @@
+import { Room, UserProfile } from '@gomoku/common/types';
+
 const BASE_URL = 'http://localhost:4000';
 
 // Helper for making authenticated requests
@@ -17,7 +19,6 @@ const fetchWithCredentials = async (url: string, options: RequestInit = {}) => {
     throw new Error(errorData.message || 'An error occurred');
   }
 
-  // Return response for further processing (e.g., if no JSON body is expected)
   if (response.headers.get('Content-Length') === '0' || !response.headers.get('Content-Type')?.includes('application/json')) {
     return response;
   }
@@ -25,30 +26,31 @@ const fetchWithCredentials = async (url: string, options: RequestInit = {}) => {
   return response.json();
 };
 
-export const fetchProfile = () => {
+export const fetchProfile = (): Promise<UserProfile> => {
   return fetchWithCredentials('/api/profile');
 };
 
-export const updateNickname = (nickname: string) => {
+export const updateNickname = (nickname: string): Promise<UserProfile> => {
   return fetchWithCredentials('/api/profile/nickname', {
     method: 'PUT',
     body: JSON.stringify({ nickname }),
   });
 };
 
-export const fetchRooms = () => {
+export const fetchRooms = (): Promise<Room[]> => {
   return fetchWithCredentials('/api/rooms');
 };
 
-export const logout = () => {
-  // Logout doesn't need the response body, but we use the helper for consistency
+export const logout = (): Promise<Response> => {
   return fetchWithCredentials('/auth/logout', { method: 'POST' });
 };
 
-export const fetchStats = () => {
+// Define interfaces for stats and rivals if they become complex
+// For now, we can use `any` or define them in @gomoku/common
+export const fetchStats = (): Promise<any> => {
   return fetchWithCredentials('/api/stats');
 };
 
-export const fetchRivals = () => {
+export const fetchRivals = (): Promise<any[]> => {
   return fetchWithCredentials('/api/rivals');
 };

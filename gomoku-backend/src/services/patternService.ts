@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { Pattern } from '@gomoku/common';
 
 // A simple UUID generator to avoid external dependencies
 const generateId = () => {
@@ -7,16 +8,6 @@ const generateId = () => {
     const r = (Math.random() * 16) | 0, v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
-};
-
-// Data type definition (should be shared with frontend)
-export type Pattern = {
-  id: string;
-  name: string;
-  description: string;
-  isRotatable: boolean;
-  isFlippable: boolean;
-  pattern: number[][];
 };
 
 export type NewPatternPayload = Omit<Pattern, 'id'>;

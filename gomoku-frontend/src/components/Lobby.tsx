@@ -1,21 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { fetchRooms } from '../api/client';
+import { Room, PublicUser } from '@gomoku/common/types';
 
 interface LobbyProps {
-  user: {
-    displayName?: string;
-    nickname?: string;
-    isGuest?: boolean;
-  };
+  user: PublicUser & { displayName?: string; isGuest?: boolean; };
   onNicknameUpdate: (nickname: string) => void;
   onJoinRoom: (roomId: string) => void;
   onNavigateToProfile: () => void;
-}
-
-interface Room {
-  id: string;
-  name: string;
 }
 
 const Lobby: React.FC<LobbyProps> = ({ user, onNicknameUpdate, onJoinRoom, onNavigateToProfile }) => {
@@ -25,10 +17,9 @@ const Lobby: React.FC<LobbyProps> = ({ user, onNicknameUpdate, onJoinRoom, onNav
   const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
-    const newSocket = io('http://localhost:4000');
+    const newSocket = io('http://localhost:4000', { query: { userId: user.id } });
     setSocket(newSocket);
 
-    // Fetch initial room list
     const getRooms = async () => {
       try {
         const roomData = await fetchRooms();
@@ -47,7 +38,7 @@ const Lobby: React.FC<LobbyProps> = ({ user, onNicknameUpdate, onJoinRoom, onNav
     return () => {
       newSocket.disconnect();
     };
-  }, []);
+  }, [user.id]);
 
   const handleSaveNickname = () => {
     onNicknameUpdate(nickname);
@@ -101,7 +92,7 @@ const Lobby: React.FC<LobbyProps> = ({ user, onNicknameUpdate, onJoinRoom, onNav
           <ul>
             {rooms.map((room) => (
               <li key={room.id}>
-                {room.name} <button onClick={() => onJoinRoom(room.id)}>Join</button>
+                {room.name} ({room.players.length}/2) <button onClick={() => onJoinRoom(room.id)}>Join</button>
               </li>
             ))}
           </ul>

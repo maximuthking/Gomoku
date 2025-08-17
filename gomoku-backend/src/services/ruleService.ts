@@ -1,6 +1,5 @@
-
-import { getAllPatterns, Pattern } from './patternService';
-import { GameState, PlayerColor } from './gameService';
+import { getAllPatterns } from './patternService';
+import { PlayerColor, Pattern } from '@gomoku/common';
 
 // --- Matrix Transformation Utilities ---
 

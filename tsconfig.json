@@ -9,10 +9,15 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
     "rootDir": ".",
-    "sourceMap": true
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@gomoku/common": ["packages/common/dist/types"]
+    }
   },
   "include": [
-    "gomoku-backend/src/**/*.ts"
+    "gomoku-backend/src/**/*.ts",
+    "packages/common/src/**/*.ts"
   ],
   "exclude": [
     "node_modules"

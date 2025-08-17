@@ -128,6 +128,28 @@ exports.Prisma.UserScalarFieldEnum = {
   nickname: 'nickname',
   profileImage: 'profileImage',
   createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  roomId: 'roomId'
+};
+
+exports.Prisma.RoomScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.GameScalarFieldEnum = {
+  id: 'id',
+  board: 'board',
+  currentPlayerId: 'currentPlayerId',
+  blackPlayerId: 'blackPlayerId',
+  whitePlayerId: 'whitePlayerId',
+  winnerId: 'winnerId',
+  status: 'status',
+  roomId: 'roomId',
+  createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
 
@@ -159,6 +181,10 @@ exports.Prisma.SortOrder = {
   desc: 'desc'
 };
 
+exports.Prisma.JsonNullValueInput = {
+  JsonNull: Prisma.JsonNull
+};
+
 exports.Prisma.QueryMode = {
   default: 'default',
   insensitive: 'insensitive'
@@ -169,9 +195,26 @@ exports.Prisma.NullsOrder = {
   last: 'last'
 };
 
+exports.Prisma.JsonNullValueFilter = {
+  DbNull: Prisma.DbNull,
+  JsonNull: Prisma.JsonNull,
+  AnyNull: Prisma.AnyNull
+};
+exports.RoomStatus = exports.$Enums.RoomStatus = {
+  WAITING: 'WAITING',
+  PLAYING: 'PLAYING',
+  FINISHED: 'FINISHED'
+};
+
+exports.GameStatus = exports.$Enums.GameStatus = {
+  IN_PROGRESS: 'IN_PROGRESS',
+  FINISHED: 'FINISHED'
+};
 
 exports.Prisma.ModelName = {
   User: 'User',
+  Room: 'Room',
+  Game: 'Game',
   GameRecord: 'GameRecord',
   UserStats: 'UserStats'
 };
